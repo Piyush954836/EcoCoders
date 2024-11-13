@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book My Ambulance</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>#map {
+        height: 700px;
+    }</style>
+</head>
+<body>
+    <div id="map"></div>
+   
+</body>
+
+<script src="https://unpkg.com/leaflet@1.2.0/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+<script>
+    // Initialize the map with a default placeholder view
+    var map = L.map('map').setView([0, 0], 2); // Initial placeholder coordinates and zoom level
+
+    // Load the map tiles
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">Book My Ambulance</a>'
+    }).addTo(map);
+
+    let marker, circle, zoomed = false, secondMarker, routeControl;
+    let routeCoordinates = [];
+    let currentCoordIndex = 0;
+
+    // Prompt user to allow geolocation access
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(success, error, {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 10000 // Increased timeout to 10 seconds
+        });
+    } else {
+        alert("Geolocation is not supported by this browser.");
+    }
+
+    var ambulanceIcon = L.icon({
+        iconUrl: "images/ambulance.png",
+        iconSize: [70, 70]
+    });
+
+    function success(position) {
+        // Extract main user's location
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+
+        // Remove previous marker and circle if they exist
+        if (marker) {
+            map.removeLayer(marker);
+            map.removeLayer(circle);
+        }
+
+        // Create a new marker and circle based on main user's current location
+        marker = L.marker([lat, lng], { icon: ambulanceIcon }).addTo(map);
+        circle = L.circle([lat, lng], { radius: accuracy }).addTo(map);
+
+        // Center the map on user's location only the first time
+        if (!zoomed) {
+            map.setView([lat, lng], 16); // Set zoom level to 16 for close-up view
+            zoomed = true;
+        }
+
+        // Update the marker position to follow the main user's location
+        marker.setLatLng([lat, lng]);
+        circle.setLatLng([lat, lng]).setRadius(accuracy);
+
+        // Set up ambulance route on click
+        map.on('click', function (e) {
+            if (secondMarker) {
+                map.removeLayer(secondMarker);
+            }
+
+            secondMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
+
+            // Remove existing route if any
+            if (routeControl) {
+                map.removeControl(routeControl);
+            }
+
+            // Set up the route for the ambulance to follow
+            routeControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(lat, lng),
+                    L.latLng(e.latlng.lat, e.latlng.lng)
+                ]
+            }).on('routesfound', function (e) {
+                const route = e.routes[0];
+                routeCoordinates = route.coordinates;
+                currentCoordIndex = 0;
+            }).addTo(map);
+        });
+    }
+
+    function error(err) {
+        // Handle different error cases
+        if (err.code === 1) {
+            alert("Please allow geolocation access.");
+        } else if (err.code === 2) {
+            alert("Unable to determine your location. Please check your GPS signal.");
+        } else if (err.code === 3) {
+            alert("The request to get your location timed out. Please try again.");
+        } else {
+            alert("Unable to retrieve location. Please check your GPS settings or try refreshing the page.");
+        }
+    }
+
+    // Update the second marker's position in real-time
+    navigator.geolocation.watchPosition(function (position) {
+        if (secondMarker) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+
+            // Update second marker's position to follow the real-time location
+            secondMarker.setLatLng([lat, lng]);
+        }
+    }, function (error) {
+        console.error("Error getting location:", error);
+    });
+</script>
+
+</html>
